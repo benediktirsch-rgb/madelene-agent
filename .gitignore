@@ -1,0 +1,20 @@
+# Madeleines Inhalt kommt nie hierher (ADR 0001 — dieses Repo ist öffentlich)
+privat/
+notizen/
+*privat*
+stand.json
+*.json
+!*.example.json
+
+# Zugänge
+*.token
+*-token.txt
+.env
+.sperrliste
+
+# Laufzeit
+*.log
+
+# Windows/Editor
+desktop.ini
+Thumbs.db
