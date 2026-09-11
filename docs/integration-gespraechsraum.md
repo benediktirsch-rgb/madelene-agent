@@ -1,152 +1,140 @@
 # Übergabe an Astra — Gesprächsraum auf Rezeption und Worker
 
 **Von:** Claude (Architektur john-agent) · **Für:** Astra (Codex in ChatGPT Work, Madeleines Rolle im gemeinsamen Konzept)
-**Stand:** 11.09.2026 · **Status:** Integrationsvorlage. Was „besteht", läuft; was „Vorschlag" heißt, ist nicht gebaut.
+**Stand:** 11.09.2026, mittags · **Status:** Das Backend steht und ist am laufenden Gerät geprüft. Die Oberfläche fehlt — die ist deine Seite.
 
 **Ziel:** ein gemeinsamer Gesprächsraum im Flow Compass, in dem Bene, John und Madeleine sprechen, gebaut auf der
 bestehenden **Rezeption** (hotel-vaikuntha.de/john) und dem **Worker** auf Benes Rechner. Keine weitere Persona,
 keine zweite Agentenarchitektur, keine neuen Orte für Wissen oder Schlüssel.
 
-**Voraussetzung, die ich annehme:** Im Raum antwortet Madeleine als **lokaler Worker-Auftrag** (Codex CLI auf Benes
-Rechner mit ihrem lokalen Wissen). Astra baut und prüft den Raum, antwortet aber nicht selbst darin. Sollte Astra
-selbst im Raum sprechen, müsste Gesprächsinhalt in Astras Umgebung fließen. Das wäre eine eigene Entscheidung von Bene
-und steht hier bewusst nicht.
+## 0. Wer was macht (Bene, 11.09.: „wir machen das jetzt von 2 Seiten")
+
+| Seite | wer | Stand |
+|---|---|---|
+| **Backend:** Protokoll, Rezeption (Art `raum`, Status `gestoppt`, `w=stopp`), Tür des Workers (`/raeume`, `/raum`, `/stopp`), Madeleine und John im Worker | Claude | **läuft** (Worker 1.2.0, Rezeption live), Prüfstände 21/21 (Rezeption) und 29/29 (Tür, echte Antworten von John, Stopp mitten im Denken samt Modellprozess, Stopp vom Handy über die Rezeption) |
+| **Oberfläche:** der Raum im Compass (Verlauf, Live, Eingabe, Stopp, „nicht weitergeben") | Astra | offen — dein Prototyp hat Verlauf, Live und Stopp schon; er wechselt nur den Transport |
+
+**Voraussetzung, die gilt:** Im Raum antwortet Madeleine als **lokaler Worker-Auftrag** (Codex CLI auf Benes Rechner
+mit ihrem lokalen Wissen). Astra baut und prüft den Raum, antwortet aber nicht selbst darin. Sollte Astra selbst im
+Raum sprechen, müsste Gesprächsinhalt in Astras Umgebung fließen — das wäre eine eigene Entscheidung von Bene.
 
 ---
 
-## 1. Protokoll der Rezeption — was verbindlich ist
+## 1. Was deine Oberfläche spricht: die Tür des Workers
 
-Maßgeblich ist `john-agent/docs/protokoll.md`, der Code folgt ihm (`john-agent/hub/api.php`). Kurzfassung:
+Maßgeblich ist `john-agent/docs/protokoll.md` › „Gesprächsraum" › „Tür des Workers". Kurzfassung:
 
-**Aufruf:** `https://hotel-vaikuntha.de/john/api.php?w=<was>`, Kopf `X-John-Token`, JSON rein und raus, immer `ok`.
-Zeiten ISO 8601 mit Zone Europe/Berlin. Ein Zustand in einer Datei unter `flock`.
+**Adresse:** `window.JOHN_TUER` oder `http://127.0.0.1:8788`. Nur am Rechner erreichbar — dort liegt der Text.
 
-**Schlüsselklassen (besteht):**
-
-| Klasse | darf | wer |
-|---|---|---|
-| `geraet` | stand, puls, stapel, punkt, auftrag, auftraege, nimm, ergebnis, log, spiegel, stapelstand | Worker auf Benes Rechner |
-| `browser` | stand, punkt, auftrag, stapelstand | eigener Compass (eingesetzt beim Bauen) |
-
-**Auftragsarten (besteht):** `stapel` · `board` · `chat` · `frage` · `takt` · `coach`. Der Worker kennt heute
-`coach` (öffentliche Persona Bene digital, sonst nichts) und `frage` (Johns Persona); alle anderen laufen mit Johns
-Persona und Lage.
-
-**Statuswechsel eines Auftrags (besteht):**
-
-```
-            w=auftrag                     w=nimm (Gerät)                 w=ergebnis
-  (neu) ───────────────► offen ─────────────────────────► laeuft ───────────────────► fertig
-                           │  ▲                              │                   (ergebnis.ok true|false)
-          24 h unberührt   │  │ 15 min ohne ergebnis         │
-                           ▼  └──────────────────────────────┘
-                       verfallen          (Beanspruchung verfällt, ein anderes Gerät darf)
-```
-
-- `nimm` ist die Sperre: zwei Geräte streiten nicht, das zweite bekommt **409**.
-- Ein gescheiterter Auftrag ist `fertig` mit `ergebnis.ok = false`; einen eigenen Fehlerstatus gibt es nicht.
-- `fertig` und `verfallen` räumt die Rezeption nach 7 Tagen weg. Das Logbuch hält nur Art und Länge, nie Text.
-- **Einen Stopp gibt es noch nicht.** Siehe Abschnitt 3.
-
-**Offene Lücke, die der Raum nicht erben darf:** `auftrag.text` (bis 2000 Zeichen) und `ergebnis.text` (bis 4000)
-speichern heute Inhalt in der Rezeption. Für `coach` ist das gewollt: öffentliche Persona, Bene gibt vor der
-Auslieferung frei. Für alle anderen Arten widerspricht es der Regel „die Rezeption bleibt dumm" (john-agent
-ADR 0002). Der Gesprächsraum nutzt diese Felder **nicht**.
-
-## 2. ADR 0002 „Zwei Berater, ein Haus" — die Madeleine-Aufträge
-
-Quelle: `madelene-agent/docs/adr/0002-zwei-berater-ein-haus.md` (Vorschlag). Madeleine zieht in dieselbe Rezeption
-und denselben Worker ein. Sie bekommt kein eigenes Haus, keinen eigenen Takt und keine eigene Lobby.
-
-**Vorgesehene Aufträge (Vorschlag):**
-
-| Art | wer denkt | Eingabe über die Rezeption | Ergebnis in der Rezeption |
-|---|---|---|---|
-| `madeleine` | Worker → Codex CLI, lokale Persona und Wissen | nur Thema-Kennung, **kein Text** | „liegt am Gerät (N Zeichen)" |
-| `raum` | Worker → John (Claude) **oder** Madeleine (Codex), je nach `an` | `raum`, `zug`, `an` — **kein Text** | „Zug N liegt am Gerät" |
-
-- Beide laufen wie heute jeder Denkvorgang: als abgekoppelter Kindprozess des Workers (`john-auftrag.ps1`), nie im
-  bedienenden Prozess. Höchstens einer denkt gleichzeitig.
-- **Voraussetzung, die fehlt:** Madeleines Prompt-Aufbau (`Build-SystemMadeleine`, `Invoke-CodexCli`) steckt in
-  `flow-compass/john-madeleine.ps1` und wird nur vom Cockpit-Server geladen. Der Worker muss ihn ohne diesen Server
-  rufen können. Plan: zusammen mit john-agent ADR 0003 ein gemeinsames Modul `john-ki.ps1` (Claude-CLI **und**
-  Codex-CLI, Fehlercodes, Umgebung ohne API-Schlüssel), das Server und Worker beide laden.
-- Der **Monatsblick** nach dem Finanzlauf (ADR 0002, Punkt 3) ist offen und kein Teil des Raums.
-
-## 3. Gesprächskontext lokal, Rezeption inhaltsfrei
-
-**Grundsatz:** Die Rezeption trägt nur das **Signal** (wer denkt, in welchem Raum, welcher Zug, welcher Status), der
-Gesprächstext bleibt auf Benes Rechner. So bleibt ein Webspace ohne Tresor frei von Inhalten, und Handy und Netz
-sehen den Stand, ohne den Text zu sehen.
-
-**Wo der Raum liegt (Vorschlag):** `C:\dev\john\coaching\raum\<raum-id>.jsonl`, eine Zeile je Zug:
-`{zug, wer: bene|john|madeleine, zeit, text, weitergeben: true|false}`. Der Ort liegt lokal, ohne Remote, und ist
-schon heute die gemeinsame Ablage beider Berater (`beraterrunde.md`). `.jsonl` statt `.md`, damit der Raum nicht
-ungefragt in Johns Systemprompt wandert, der alle `coaching/*.md` lädt. Die bisherige `beraterrunde.md` bleibt die
-Zusammenfassung.
-
-**Was „freigegebener Gesprächskontext" heißt:**
-
-| geht in den nächsten Zug | geht nie über die Grenze |
+| Aufruf | Antwort |
 |---|---|
-| die Züge dieses Raums, die Bene sieht, außer denen mit `weitergeben: false` | Wissensdateien des jeweils anderen (`C:\dev\madeleine\wissen`, `privat\`, Johns Profil, Pipeline, Memory) |
-| Benes eigene Beiträge im Raum | Schlüssel, Kontostände aus Dateien, Mail-Entwürfe |
+| `GET /raeume` | `{ok, raeume:[{id, thema, zuege, zuletzt, laeuft, wartet}]}` |
+| `GET /raum?id=<raum>&seit=<zug>` | `{ok, id, thema, zuege:[{zug, wer, zeit, text, weitergeben}], laeuft:{an, seit}\|null, wartet:[an…]}` |
+| `POST /raum {id?, thema?, text, an:"john"\|"madeleine"\|"beide"}` | `{ok, id, zug, wartet}` — ohne `id` ein neuer Raum |
+| `POST /raum/weitergeben {id, zug, weitergeben:false\|true}` | `{ok, id, zug, weitergeben}` |
+| `POST /stopp {id}` | `{ok, gestoppt}` |
 
-John bekommt also, was Madeleine **gesagt** hat, aber nicht, was sie **weiß**, und umgekehrt. Beide Modelle laufen
-auf Benes Abos. Dass Madeleines Zahlen an OpenAI gehen, hat Bene bestellt. Dass Johns Worte über den Raum bei ihr
-landen, ist neu und genau durch die Zeilenliste begrenzt.
+- `wer`: `bene` · `john` · `madeleine` · `system`. **`system`-Zeilen gehören in den Verlauf** (Stopp, Fehler,
+  Abbruch nach 16 Min) — „leer heißt nie nichts".
+- **Live:** alle 2 s `GET /raum?id&seit=<letzter zug>`. Die Tür antwortet in Millisekunden; sie denkt nie selbst.
+- **„Denkt gerade":** `laeuft.an` + `laeuft.seit` (John ca. 10–20 s, Madeleine 20–60 s, bei „beide" nacheinander).
+  `wartet` nennt, wer danach noch dran ist. `POST /raum` antwortet `wartet: true`, wenn John gerade etwas anderes
+  denkt (sein Takt) — die Oberfläche sagt dann „wartet, John ist beschäftigt", nicht „hängt".
+- **Fehlercodes:** 400 (Feld fehlt/ungültig), 404 (Raum/Zug unbekannt), 405 (Handlung per GET), 413 (Text über
+  8000 Zeichen), 403 (fremde Herkunft).
+- **Herkunft:** Die Tür antwortet nur eigenen Seiten (`https://bene.vishnuartists.com`, `localhost`/`127.0.0.1`
+  mit beliebigem Port). Weitere Herkünfte trägt Bene als User-Variable `JOHN_TUER_ORIGINS` ein. Handlungen nur per `POST`.
+- **Nicht erreichbar** (Rechner aus, Worker aus, Handy): die Lobby erkennt das schon (`compass-john-lobby.js`,
+  `GET /stand`). Am Handy zeigt der Raum nur den Stand aus der Rezeption (Abschnitt 3) und kann stoppen.
 
-**Ein Zug im Ablauf (Vorschlag):**
+**Entwickeln ohne Benes Rechner:** `john-agent/tools/tuer-attrappe.php` spricht denselben Vertrag mit gespielten
+Antworten (je Sprecher 4 s „Denken", bei „beide" nacheinander; das Wort „fehler" im Text spielt einen Fehlschlag).
 
 ```
- Compass (am Rechner)                Worker :8788                      Rezeption
-  POST /raum {id, text} ───────────► Zeile an raum/<id>.jsonl
-                                     w=auftrag {art:raum, raum, zug, an:'madeleine'} ──► offen
-                                     puls ◄── auftraege: 1
-                                     w=nimm ────────────────────────────────────────────► laeuft
-                                     Kind: Codex mit Persona + Wissen + freigegebenen Zügen
-                                     Zeile an raum/<id>.jsonl
-                                     w=ergebnis {ok, notiz:"Zug 4 liegt am Gerät"} ─────► fertig
-  GET /raum?id&seit=3 ◄────────────  neue Züge (Live: alle 2 s, Tür antwortet in ms)
+php -S 127.0.0.1:8788 tools/tuer-attrappe.php
 ```
 
-**Neu nötig (Vorschlag):**
-- **Tür des Workers:** `GET /raum?id=&seit=<zug>` (Züge seit N), `POST /raum {id, text, an}` (Beitrag von Bene plus
-  Auftrag), `POST /stopp {id}` (laufenden Kindprozess beenden). Nur lokal erreichbar, wie heute `/stand`.
-- **Rezeption:** Art `raum` in der Liste der Auftragsarten, und bei `raum` weist die Rezeption `text` in `auftrag`
-  und `ergebnis` ab (400). Neuer Status `gestoppt` über `POST w=stopp {id}` (Gerät und Browser). Die Puls-Antwort
-  meldet `stopp: [ids]`, damit der Worker den Kindprozess beendet, auch wenn Bene am Handy stoppt.
-- **Protokoll zuerst:** jede dieser Änderungen erst in `john-agent/docs/protokoll.md`, dann im Code.
+## 2. Wo die Oberfläche hingehört
 
-**Was am Handy geht:** Stand des Raums (läuft, Zug N fertig, gestoppt) aus der Rezeption und Stopp. Den Text sieht
-man nur am Rechner. Ob Bene vom Handy aus **schreiben** darf (dann läge sein Satz einmal in der Rezeption), ist
-eine offene Entscheidung für ihn.
+- **Eine eigene Datei, von außen angehängt** — so wie `compass-john-lobby.js`: Vorschlag
+  `john-agent/compass/compass-gespraechsraum.js`. Sie liest `window.JOHN_TUER` (für die Rezeption: `JOHN_HUB` und
+  `JOHN_HUB_TOKEN_BROWSER`, beide setzt der Build der eigenen Instanz) und hängt sich an eine Karte bzw. einen Knopf
+  in Johns Kachel. `dashboard.html` bekommt nur ein `<script>`-Tag.
+- **Nie in die Verkaufs-Demo:** `build-compass-produkt.ps1` nimmt John-Dateien heraus. Eine neue Datei muss dort in
+  die Ausschlussliste — sonst landet der Raum in der Demo. Das spiele ich beim Einbau nach.
+- **Kein eigener Transport:** nicht `/api/john`, nicht `/api/madeleine` am Cockpit-Server. Der ist seriell — ein
+  Denkvorgang blockiert ihn 60–90 s, genau das war der Grund für die neue Architektur.
+- Deine Änderungen kommen als **Branch oder Pull Request**. Ich prüfe gegen den laufenden Worker und baue ein.
 
-**Zum Prototyp:** Er ruft `/api/john` und `/api/madeleine` am Cockpit-Server auf. Dieser Server arbeitet seriell: ein
-Denkvorgang blockiert ihn 60–90 s, und genau das war der Grund für die neue Architektur. Die Oberfläche (Verlauf,
-Live, Stopp) passt. Der Transport wechselt auf `POST/GET /raum` an der Tür und die Art `raum` in der Rezeption.
+## 3. Was die Rezeption dazu weiß (am Handy)
 
-## 4. Anschluss für eine externe Work-Sitzung (Astra)
+`GET https://hotel-vaikuntha.de/john/api.php?w=stand` mit Browser-Schlüssel liefert
+`raeume:[{id, raum, thema, zug, an, status, erstellt, fertig}]` — die letzten 20 Raum-Züge, **ohne Text**.
+Status: `laeuft` · `fertig` · `gestoppt` (· `offen`/`verfallen` selten).
+Stoppen vom Handy: `POST w=stopp {id:<auftrag-id aus raeume>, wer:"handy"}` → das Gerät beendet den Lauf beim
+nächsten Puls (≤ 10 s, solange im Raum gesprochen wird) und schreibt „Gestoppt von einem anderen Gerät" in den Raum.
+Den Text sieht man nur am Rechner. Ob Bene vom Handy aus **schreiben** darf (dann läge sein Satz einmal in der
+Rezeption), ist eine offene Entscheidung für ihn — bis dahin: am Handy Stand und Stopp, keine Eingabe.
+
+## 4. Wie ein Zug läuft (besteht)
+
+```
+ Compass (am Rechner)          Tür :8788 (Worker)                 Kindprozess (john-auftrag.ps1)          Rezeption
+  POST /raum {id,text,an} ──►  Benes Zeile an raum/<id>.jsonl
+                               in die Warteschlange (vor dem Takt)
+                               Kopf frei? ──► startet Kind ──────► w=auftrag {art:raum, raum, zug, an} ──► offen
+                                                                   w=nimm ───────────────────────────────► laeuft
+                                                                   John: Claude mit seiner Lage
+                                                                   Madeleine: Codex mit ihrem Wissen
+                                                                   (+ Züge dieses Raums, weitergeben≠false)
+                                                                   Zeile an raum/<id>.jsonl
+                                                                   w=ergebnis {ok, notiz:"Zug N liegt am Gerät"} ► fertig
+  GET /raum?id&seit ◄───────── neue Zeilen
+  POST /stopp ───────────────► taskkill /T (Kind + claude/codex) · system-Zeile · w=stopp ───────────────► gestoppt
+```
+
+**Was in einen Zug eingeht:** Persona und Wissen **des Sprechenden** plus die Züge dieses Raums mit
+`weitergeben ≠ false`. John bekommt, was Madeleine **gesagt** hat, nicht, was sie **weiß** — und umgekehrt. Nie die
+Wissensdateien des anderen, nie Schlüssel.
+
+**Wo der Raum liegt:** `C:\dev\john\coaching\raum\<id>.jsonl` auf Benes Rechner (lokal, ohne Remote). Zeile 1
+`{meta, thema, erstellt}`, danach je Zug `{zug, wer, zeit, text, weitergeben}`. `.jsonl` statt `.md`, damit der Raum
+nicht ungefragt in Johns Systemprompt wandert.
+
+## 5. Rezeption: was sich verbindlich geändert hat (für Tests in deiner Umgebung)
+
+- Schlüsselklassen: `geraet` darf zusätzlich `stopp`; `browser` darf `stand, punkt, auftrag, stapelstand, stopp`.
+- Auftragsarten: `stapel` · `board` · `chat` · `frage` · `takt` · `coach` · **`raum`**. Einen Raum-Zug legt **nur
+  das Gerät** an (Browser → 403), mit leerem `text` (sonst 400); `ergebnis` mit Text → 400.
+- Status: `offen → laeuft → fertig`, dazu `offen/laeuft → gestoppt` über `w=stopp` (sonst 409); `nimm`/`ergebnis`
+  auf gestoppt → 409. `puls` meldet `stopp:[ids]` an das Gerät, das den Auftrag hatte.
+- Offene Raum-Züge zählen nicht in `puls.auftraege`.
+- Eine eigene Art `madeleine` gibt es **nicht**: eine einzelne Frage an Madeleine ist ein Raum mit einem Zug.
+
+Für eine eigene Rezeption in deiner Umgebung: `john-agent/hub/api.php` mit `php -S` und zwei Test-Token in
+`token.php` (nur SHA-256-Hashes) — der Prüfstand dazu ist in wenigen Zeilen nachgebaut.
+
+## 6. Anschluss für eine externe Work-Sitzung (Astra)
 
 **Grundsatz: so wenig wie möglich, einzeln widerrufbar, nie als Gerät.** Ein externes Gerät, das Aufträge
 beansprucht, wäre eine zweite Madeleine, also eine zweite Agentenarchitektur.
 
 | Stufe | Astra bekommt | Astra bekommt nicht |
 |---|---|---|
-| **Entwickeln** (sofort) | Lesen auf GitHub (`john-agent`, `madelene-agent`, `flow-compass`); in der eigenen Linux-Umgebung eine **eigene** Rezeption (`hub/api.php` mit `php -S`, Test-Token, simulierter Worker über HTTP) | keinen Produktionsschlüssel |
-| **Beitragen** | Änderungen als Branch oder Pull Request. Claude prüft sie und spielt sie aus, weil Deploy und Tests am laufenden Worker Benes Rechner brauchen | kein direkter Push auf `main`, kein FTP |
-| **Beobachten** (Vorschlag, später) | dritte Schlüsselklasse `extern` (Variable `JOHN_HUB_TOKEN_EXTERN`, von Bene selbst an Astra gegeben): nur `stand` in **verkürzter** Form (Geräte und Puls, Auftragszähler, Takt, Status eines Raums) | Stapeltitel, Compass-Spiegel, Logbuch, `auftrag`, `nimm`, `ergebnis`, `puls`, `stapelstand` |
+| **Entwickeln** (jetzt) | Lesen auf GitHub; `tools/tuer-attrappe.php` als Tür; eine **eigene** Rezeption mit Test-Token | keinen Produktionsschlüssel |
+| **Beitragen** | Branch oder Pull Request; Claude prüft am laufenden Worker und spielt aus | kein direkter Push auf `main`, kein FTP |
+| **Beobachten** (Vorschlag, später) | dritte Schlüsselklasse `extern` (Variable `JOHN_HUB_TOKEN_EXTERN`, von Bene selbst gegeben): nur `stand` in verkürzter Form | Stapeltitel, Compass-Spiegel, Logbuch, `auftrag`, `nimm`, `ergebnis`, `puls`, `stapelstand` |
 
-Nie erreichbar für Astra: die Tür `127.0.0.1:8788`, `C:\dev\madeleine`, `C:\dev\john`, Benes Vishnu-Anmeldung,
-Benutzer-Umgebungsvariablen. Wissen von der lokalen Madeleine zu Astra geht **nur** über Dokumente wie dieses, die
-Bene oder Claude ausdrücklich übergeben. Einen Laufzeitweg gibt es nicht.
+Nie erreichbar für Astra: die echte Tür `127.0.0.1:8788`, `C:\dev\madeleine`, `C:\dev\john`, Benes
+Vishnu-Anmeldung, Benutzer-Umgebungsvariablen. Wissen von der lokalen Madeleine zu Astra geht **nur** über Dokumente
+wie dieses. Einen Laufzeitweg gibt es nicht.
 
-**Erste Aufgaben, die ohne weiteren Zugang gehen:**
-1. Den Prototyp gegen eine lokale Rezeption plus simulierten Worker umbauen (Art `raum`, Tür `/raum`, `/stopp`).
-2. Die Protokoll-Erweiterung aus Abschnitt 3 als Pull Request an `john-agent/docs/protokoll.md` formulieren, bevor
-   Code entsteht.
-3. Tests, die beweisen, dass die Rezeption bei `raum` keinen Text annimmt und dass `gestoppt` einen laufenden
-   Auftrag erreicht.
+**Deine nächsten Schritte:**
+1. Den Prototyp auf die Tür umstellen (`/raeume`, `/raum`, `/stopp`, `/raum/weitergeben`) und gegen
+   `tuer-attrappe.php` laufen lassen.
+2. `system`-Zeilen, `laeuft`/`wartet` und die Fehlercodes sichtbar machen (nie ein leeres Feld ohne Grund).
+3. Als eigene Datei `compass/compass-gespraechsraum.js` in `john-agent` einreichen (PR). Einbau in den Compass,
+   Demo-Ausschluss und Prüfung am echten Worker übernehme ich.
 
 ## Regeln aus beiden Repos, die hier gelten
 
