@@ -18,6 +18,7 @@ Organisation für GmbH, Verein und privat. Angelegt am 11.09.2026, Schwester-Rep
 | Was darf hier nie hinein? | [`docs/adr/0001-inhalt-bleibt-lokal.md`](docs/adr/0001-inhalt-bleibt-lokal.md) |
 | Wie spielen John und Madeleine zusammen? | [`docs/adr/0002-zwei-berater-ein-haus.md`](docs/adr/0002-zwei-berater-ein-haus.md) |
 | Wozu ist sie da, und wo endet ihr Auftrag? | [`wissen/rolle.md`](wissen/rolle.md) |
+| Gesprächsraum mit John — Integration (Übergabe an Astra) | [`docs/integration-gespraechsraum.md`](docs/integration-gespraechsraum.md) |
 | Was steht noch aus? | [`docs/stand.md`](docs/stand.md) |
 
 ## Drei Orte, klar getrennt
