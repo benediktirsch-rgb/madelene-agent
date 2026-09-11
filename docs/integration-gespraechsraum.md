@@ -1,7 +1,7 @@
 # Übergabe an Astra — Gesprächsraum auf Rezeption und Worker
 
 **Von:** Claude (Architektur john-agent) · **Für:** Astra (Codex in ChatGPT Work, Madeleines Rolle im gemeinsamen Konzept)
-**Stand:** 11.09.2026, mittags · **Status:** Das Backend steht und ist am laufenden Gerät geprüft. Die Oberfläche fehlt — die ist deine Seite.
+**Stand:** 11.09.2026, 14:45 · **Status:** Backend und Oberfläche laufen. Deine Oberfläche ist eingebaut und am echten Worker geprüft — Rückmeldung in Abschnitt 7.
 
 **Ziel:** ein gemeinsamer Gesprächsraum im Flow Compass, in dem Bene, John und Madeleine sprechen, gebaut auf der
 bestehenden **Rezeption** (hotel-vaikuntha.de/john) und dem **Worker** auf Benes Rechner. Keine weitere Persona,
@@ -12,7 +12,7 @@ keine zweite Agentenarchitektur, keine neuen Orte für Wissen oder Schlüssel.
 | Seite | wer | Stand |
 |---|---|---|
 | **Backend:** Protokoll, Rezeption (Art `raum`, Status `gestoppt`, `w=stopp`), Tür des Workers (`/raeume`, `/raum`, `/stopp`), Madeleine und John im Worker | Claude | **läuft** (Worker 1.2.0, Rezeption live), Prüfstände 21/21 (Rezeption) und 29/29 (Tür, echte Antworten von John, Stopp mitten im Denken samt Modellprozess, Stopp vom Handy über die Rezeption) |
-| **Oberfläche:** der Raum im Compass (Verlauf, Live, Eingabe, Stopp, „nicht weitergeben") | Astra | offen — dein Prototyp hat Verlauf, Live und Stopp schon; er wechselt nur den Transport |
+| **Oberfläche:** der Raum im Compass (Verlauf, Live, Eingabe, Stopp, „nicht weitergeben") | Astra | **eingebaut 11.09. 14:40** — Branch `astra/gespraechsraum-themen` übernommen (fast-forward), am echten Worker geprüft, siehe Abschnitt 7 |
 
 **Voraussetzung, die gilt:** Im Raum antwortet Madeleine als **lokaler Worker-Auftrag** (Codex CLI auf Benes Rechner
 mit ihrem lokalen Wissen). Astra baut und prüft den Raum, antwortet aber nicht selbst darin. Sollte Astra selbst im
@@ -141,3 +141,34 @@ wie dieses. Einen Laufzeitweg gibt es nicht.
 Kein Denken im ausliefernden Prozess · leer heißt nie „nichts" · die Rezeption bleibt dumm · Protokoll zuerst ·
 nichts Persönliches in die öffentlichen Repos (in `madelene-agent` prüft das ein Hook) · Git nur Porcelain, kein
 Force · Encoding `.ps1` mit BOM, sonst UTF-8 ohne BOM, LF.
+
+## 7. Rückmeldung zu deinem Branch (Claude, 11.09.2026, 14:45)
+
+Danke, Astra — sauber gebaut. Der Branch `astra/gespraechsraum-themen` (32ca731, f59dbff) ist per fast-forward in
+`john-agent/main` übernommen und läuft in Benes eigenem Compass.
+
+**Am echten Worker geprüft** (Compass auf `localhost:8787`, Tür `127.0.0.1:8788`):
+- Knopf „Gespräch mit John & Madeleine“ erscheint in Johns Karte, der Dialog öffnet, die Bar ist gezeichnet.
+- Status „Die Tür ist erreichbar“, Raumliste leer mit Grund („Noch keine Räume vorhanden“).
+- Neuer Raum „Einbauprobe (Claude)“, Zug an John: Johns Antwort stand nach ~5 s im Verlauf, während des Denkens
+  „John denkt gerade · seit …“ mit Sprech-Punkt an seiner Figur, danach „Bereit.“ und Stopp gesperrt.
+- Keine Konsolenfehler. Demo-Build: Skriptzeile heraus, Datei nicht kopiert, Wortprüfung bestanden.
+
+**Eine Änderung von mir** (Commit 795cfe6): Die Instanz gilt jetzt schon als konfiguriert, wenn es `JOHN_API` gibt.
+Im lokalen Compass ist `JOHN_API` die leere Zeichenkette (same-origin) — mit `typeof JOHN_API === 'string' && JOHN_API`
+wäre der Knopf am Rechner, also genau dort, wo die Tür erreichbar ist, nie erschienen. Die Demo bindet das Skript gar
+nicht erst ein, der Schutz gegen Netzverkehr in der Demo bleibt also bestehen.
+
+**Wie es in den Compass kommt:** Quelle bleibt `john-agent/compass/compass-gespraechsraum.js`;
+`geraet/john-aufgaben.ps1 -Sync` kopiert sie (wie die Lobby) nach flow-compass, der Publish-Lauf bringt sie auf
+`bene.vishnuartists.com`. Weitere Änderungen also weiter als Branch in `john-agent`.
+
+**Offen:**
+1. **`bene.vaikuntha.eu`:** Die Adresse zeigt schon auf den Webspace, hat aber noch kein gültiges Zertifikat. Die
+   Herkunft gebe ich an Tür und Rezeption frei, sobald Bene das bestätigt — bis dahin bleibt es bei
+   `bene.vishnuartists.com` und `localhost`. Keine globale Freigabe, wie du schreibst.
+2. **Kleinigkeit für dich:** das Namensschild „Du · Platzhalter“ ist für die 114-px-Pille zu breit (Text läuft an den
+   Rand). Kürzer („Du“ + Hinweis im Tooltip) oder Pille breiter.
+3. Am Handy und hinter der Anmeldung auf `bene.vishnuartists.com` habe ich den Raum noch nicht selbst gesehen — die
+   Anmeldung ist Benes.
+4. Benes Entscheidung, ob er am Handy **schreiben** darf, steht weiter aus (Abschnitt 3).
